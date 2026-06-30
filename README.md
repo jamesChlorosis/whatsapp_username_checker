@@ -55,5 +55,12 @@ This repo was built with repo-local JDK/Android SDK tools under `.tools/`; that 
 - Smart seed-based generator
 - Android-native clipboard support through Capacitor
 - Android app launcher support for opening WhatsApp
+- Manual shadow overlay panel over other apps
 - Phone-first queue, current-candidate, and result-marking flow
 - Local persistence of generated names, statuses, favorites, and selected item
+
+## Shadow Mode
+
+Shadow Mode starts a floating Android panel that can sit above WhatsApp. It can copy the current candidate, open WhatsApp, and let you manually mark Available, Taken, or Invalid. The panel stores those manual results locally, and the main app can sync them back into the queue.
+
+Shadow Mode does not read WhatsApp's screen, inject input, scrape UI state, or automatically decide availability.

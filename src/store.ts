@@ -20,6 +20,7 @@ interface FinderState {
   next: () => void;
   previous: () => void;
   mark: (status: UsernameStatus) => void;
+  applyShadowResults: (results: Record<string, { status: UsernameStatus; timestamp: number }>) => number;
   toggleFavorite: () => void;
   appendGenerated: (seeds: string[], limit: number) => void;
 }
@@ -61,6 +62,24 @@ export const useFinderStore = create<FinderState>()(
               : row,
           ),
         })),
+      applyShadowResults: (results) => {
+        let changed = 0;
+        set((state) => ({
+          rows: state.rows.map((row) => {
+            const result = results[row.text];
+            if (!result) {
+              return row;
+            }
+            changed += 1;
+            return {
+              ...row,
+              status: result.status,
+              lastCheckedAt: new Date(result.timestamp).toISOString(),
+            };
+          }),
+        }));
+        return changed;
+      },
       toggleFavorite: () =>
         set((state) => ({
           rows: state.rows.map((row) =>

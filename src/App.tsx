@@ -12,7 +12,14 @@ import {
   Sun,
 } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { copyUsername, openWhatsApp } from "./platform";
+import {
+  copyUsername,
+  ensureShadowOverlayPermission,
+  getShadowResults,
+  openWhatsApp,
+  startShadowOverlay,
+  stopShadowOverlay,
+} from "./platform";
 import { useFinderStore } from "./store";
 import { UsernameStatus } from "./types";
 
@@ -36,6 +43,7 @@ export function App() {
   const setFavoritesOnly = useFinderStore((state) => state.setFavoritesOnly);
   const toggleTheme = useFinderStore((state) => state.toggleTheme);
   const mark = useFinderStore((state) => state.mark);
+  const applyShadowResults = useFinderStore((state) => state.applyShadowResults);
   const next = useFinderStore((state) => state.next);
   const previous = useFinderStore((state) => state.previous);
   const toggleFavorite = useFinderStore((state) => state.toggleFavorite);
@@ -51,6 +59,7 @@ export function App() {
   }, [favoritesOnly, rows, search, statusFilter]);
 
   const selected = rows.find((row) => row.id === selectedId) ?? rows[0];
+  const selectedIndex = Math.max(0, rows.findIndex((row) => row.id === selected?.id));
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", !lightMode);
@@ -95,7 +104,12 @@ export function App() {
 
         <section className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="flex min-w-0 flex-col gap-3">
-            <TryPanel selected={selected} />
+            <TryPanel
+              selected={selected}
+              rows={rows}
+              selectedIndex={selectedIndex}
+              applyShadowResults={applyShadowResults}
+            />
             <FilterBar
               search={search}
               statusFilter={statusFilter}
@@ -116,7 +130,17 @@ export function App() {
   );
 }
 
-function TryPanel({ selected }: { selected?: ReturnType<typeof useFinderStore.getState>["rows"][number] }) {
+function TryPanel({
+  selected,
+  rows,
+  selectedIndex,
+  applyShadowResults,
+}: {
+  selected?: ReturnType<typeof useFinderStore.getState>["rows"][number];
+  rows: ReturnType<typeof useFinderStore.getState>["rows"];
+  selectedIndex: number;
+  applyShadowResults: ReturnType<typeof useFinderStore.getState>["applyShadowResults"];
+}) {
   const mark = useFinderStore((state) => state.mark);
   const next = useFinderStore((state) => state.next);
   const previous = useFinderStore((state) => state.previous);
@@ -134,6 +158,27 @@ function TryPanel({ selected }: { selected?: ReturnType<typeof useFinderStore.ge
   const tryInWhatsApp = async () => {
     await copy();
     await openWhatsApp();
+  };
+
+  const startShadow = async () => {
+    try {
+      const granted = await ensureShadowOverlayPermission();
+      if (!granted) {
+        setFeedback("Enable overlay permission, then tap Shadow again");
+        return;
+      }
+      await startShadowOverlay(rows.map((row) => row.text), selectedIndex);
+      setFeedback("Shadow panel started");
+      await openWhatsApp();
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Shadow panel could not start");
+    }
+  };
+
+  const syncShadow = async () => {
+    const results = await getShadowResults();
+    const changed = applyShadowResults(results);
+    setFeedback(`Synced ${changed} result${changed === 1 ? "" : "s"}`);
   };
 
   return (
@@ -158,6 +203,9 @@ function TryPanel({ selected }: { selected?: ReturnType<typeof useFinderStore.ge
         <button className="primary-button col-span-2" onClick={tryInWhatsApp}>
           <ClipboardCheck size={18} /> Try in WhatsApp
         </button>
+        <button className="text-button col-span-2" onClick={startShadow}>
+          <ExternalLink size={17} /> Start Shadow Panel
+        </button>
         <button className="text-button" onClick={copy}>
           <Copy size={17} /> Copy
         </button>
@@ -177,6 +225,11 @@ function TryPanel({ selected }: { selected?: ReturnType<typeof useFinderStore.ge
         <button className="status-button taken" onClick={() => mark("taken")}>Taken</button>
         <button className="status-button invalid" onClick={() => mark("invalid")}>Invalid</button>
         <button className="status-button unknown" onClick={() => mark("unknown")}>Unsure</button>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button className="text-button" onClick={syncShadow}>Sync shadow results</button>
+        <button className="text-button" onClick={stopShadowOverlay}>Stop shadow</button>
       </div>
 
       <div className="mt-4 min-h-5 text-center text-sm font-medium text-mint">{feedback}</div>
